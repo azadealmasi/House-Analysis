@@ -1,0 +1,680 @@
+---
+title: "Cs5801 Coursework"
+author: '2207479'
+date: "2022-12-09"
+output:
+  pdf_document: default
+  html_document: default
+---
+Install and load required libraries
+```{r}
+#install.packages(ggplot2)
+#install.packages(validate)
+
+library(ggplot2)
+library(validate)
+
+```
+
+
+# 1. Organise and clean the data
+
+## 1.1 Subset the data into the specific dataset allocated
+
+```{r}
+# Assign your student id into the variable SID, for example:
+SID <- 2207479                  # This is an example, replace 2101234 with your actual ID
+SIDoffset <- (SID %% 100) + 1    # Your SID mod 100 + 1
+load("house-analysis.RDa")
+# Now subset the housing data set
+# Pick every 100th observation starting from your offset
+# Put into your data frame named mydf (you can rename it)
+mydf <- house.analysis[seq(from=SIDoffset,to=nrow(house.analysis),by=100),]
+```
+
+
+## 1.2 Data quality analysis
+ 
+Step 1) Installing or Loading required libraries, such as validate.
+Step 2) Eyeball the data by summary, str and table functions to determine each variable and column in the data set.
+Step 3) Exploring and checking the data more systematically using the validator() function to check for any possible problems in values.
+Step 4) Checking the result of validator() function numerically and graphically.
+Step 5) Reporting the issues about data quality.
+
+###Installing or Loading required libraries.
+
+I have added required packages such as validate at the top of the code.
+
+### Eyeball the data by summary, str and table functions.
+
+```{r}
+summary(mydf)
+str(mydf)
+```
+
+### Exploring and checking the data more systematically.
+
+```{r}
+mydf.rules <-  validator(
+  
+                         OkHeating = is.element(heating,c("autonomous","other")),
+                         NonNegprice  = price  > 0,
+                         NonNegmq = mq > 0,
+                         NonNegfloor = floor > 0,
+                         NonNegbathroom = n_bathrooms > 0,
+                         NonNegroom = n_rooms >= 0,
+                         Str.Terrace = is.factor(has_terrace),
+                         Str.Heating = is.factor(heating),
+                         Str.Alarm = is.factor(has_alarm),
+                         Str.Airconditioning = is.factor(has_air_conditioning),
+                         Str.Parking = is.factor(has_parking),
+                         Str.Furnished = is.factor(is_furnishe)
+                         )
+
+```
+
+### Checking the result of validator Numerically and Graphically.
+```{r}
+mydf.check <- confront(mydf, mydf.rules)
+summary(mydf.check)
+```
+
+```{r}
+barplot(mydf.check, xlab = "")
+```
+
+
+## 1.3 Data cleaning  
+
+List of issues to be fix:
+
+- There is a negative variable in n_rooms.
+- There is an spelling mistake in heating column.
+- There is a zero value(unacceptable) in mq column.
+- As id does not give us important information we ignore it for now.
+- We have five binary(categorical) variables (has_terrace, has_alarm, has_air_conditioning, has_parking, is_furnished) and heating that have been read in R incorrectly so this issue can be fix in R using as.factor() function.
+
+
+### Imputing the negative variable in n_rooms by sample function
+```{r}
+# Identify the unreasonable values in the vector
+negetive_values <- mydf$n_rooms[mydf$n_rooms < 0]
+
+# Use the sample function to randomly select new values from the rest of the data to replace the unreasonable values
+mydf$n_rooms[mydf$n_rooms < 0] <- sample(mydf$n_rooms[mydf$n_rooms >= 0], length(negetive_values))
+```
+
+Checking the n_rooms after imputation
+```{r}
+summary(mydf$n_rooms)
+```
+
+### Fixing spelling mistake in heating column
+```{r}
+table(mydf$heating)
+```
+```{r}
+mydf$heating[mydf$heating == "autonamous"] <- "autonomous"
+table(mydf$heating)
+
+```
+
+### Imputing the zero value(unreasonable) in mq column by median.
+```{r}
+
+# Compute the median of the data
+median_value <- median(mydf$mq, na.rm = TRUE)
+
+# Identify missing or unreasonable values
+unreasonable_value <- is.na(mydf$mq) | (mydf$mq == 0)
+
+# Replace missing or unreasonable values with the median value
+mydf$mq[unreasonable_value] <- ifelse(unreasonable_value, median_value, mydf$mq)
+
+```
+### Fixing categorical data formatting using as.factor() function
+```{r}
+mydf$has_terrace <- as.factor(mydf$has_terrace)
+mydf$has_alarm <- as.factor(mydf$has_alarm)
+mydf$has_air_conditioning <- as.factor(mydf$has_air_conditioning)
+mydf$has_parking <- as.factor(mydf$has_parking)
+mydf$is_furnished <- as.factor(mydf$is_furnished)
+mydf$heating <- as.factor(mydf$heating)
+
+```
+
+
+We can then use the summary() function to check that the unreasonable values have been replaced with the median value.
+
+```{r}
+summary(mydf$mq)
+```
+
+```{r}
+summary(mydf)
+```
+
+As we can see, there are no more problems in the quality of the data.
+
+
+# 2. Exploratory Data Analysis (EDA)
+
+## 2.1 EDA plan
+
+Exploring, describing and visualizing the data is an essential step in data  analysis process, as it helps to get a better understanding of data and identify any patterns or trends that may be present. 
+
+The approach to explore each variable depends on their type. So, we use different approaches to explore our categorical and numerical variables.
+
+Step 1) Load the data into R.
+
+Step2) Get a numerical summary of the variables to explore the essential characteristics of the data using summary() and table() functions.
+In addition, we can use functions such as str(), head(), and tail() to get a sense of the structure and content of the data.
+
+
+Step 3) Graphically summary of the variables.
+Examine the data for patterns or trends, and keep an eye out for outliers or oddities.
+The histogram, which depicts the frequency and distribution of values in the data, can be used to provide a graphical summary of numerical variables.
+A bar plot or box plot can also be used to provide a graphical overview of categorical variables.
+
+
+Step 4) Discovering the correlation and relationships between pairs of variables using functions such as cor().
+
+Step 5) Visualizing the relationship between variables. Using scatter plot, plot or box plot.
+ 
+Step 6) Summarizing the findings.
+ 
+ 
+## 2.2 EDA and summary of results  
+
+Step 1) Step 1 have been done in Organize and clean the data section, part 1.1.
+
+Step 2) Get a numerical summary of the variables
+```{r}
+# Getting the main characteristics of the data
+summary(mydf)
+# Getting the structure of the data
+str(mydf)
+```
+
+Eyeball the first and last six of the data
+```{r}
+# Getting the first six rows of the data
+head(mydf)
+# Getting the last six rows of the data
+tail(mydf)
+```
+
+Checking the categorical variables using table() function
+```{r}
+table(mydf$heating)
+table(mydf$has_terrace)
+table(mydf$has_alarm)
+table(mydf$has_air_conditioning)
+table(mydf$has_parking)
+table(mydf$is_furnished)
+
+```
+
+
+Step 3) Graphically summary of variables
+
+Using the histogram for the continuous variables
+```{r}
+ggplot(mydf, aes(x=price)) + geom_histogram(bins = 10, color="darkgrey", fill="grey") + theme_classic() + ggtitle("Histogram of the Price variable")
+
+ggplot(mydf, aes(x=mq)) + geom_histogram(bins = 10, color="darkgrey", fill="grey") + theme_classic() + ggtitle("Histogram of the mq variable")
+
+```
+Additionally, a bar chart can be used to show the frequency of the discrete variables such as floor, n_rooms and n_bathrooms.
+```{r}
+ggplot(data = mydf, aes(floor)) +
+  geom_bar(color="darkgrey", fill = "grey") +
+  labs(title = "Frequency of floor variable") 
+
+
+ggplot(data = mydf, aes(n_rooms)) +
+  geom_bar(color="darkgrey", fill = "grey") +
+  labs(title = "Frequency of n_rooms variable") 
+
+
+ggplot(data = mydf, aes(n_bathrooms)) +
+  geom_bar(color="darkgrey", fill = "grey") +
+  labs(title = "Frequency of n_bathrooms variable") 
+
+```
+
+
+Using shapiro.test() function to check our continuous data is normally distributed or not.
+```{r}
+shapiro.test(mydf$price)
+shapiro.test(mydf$mq)
+```
+According to the p-value (p-value < 0.05), the data is not normally distributed, transformation or normalization techniques such as log transformation, square root transformation, the inverse transformation or the Box-Cox transformation can be used to make our data more normally distributed.
+
+
+Using log transformation to make the data more normally distributed.
+```{r}
+# Apply the log transformation to the data
+price_log <- log(mydf$price)
+# Plot the transformed data
+hist(price_log, main = "log-transformed price variable")
+
+
+# Apply the log transformation to the data
+mq_log <- log(mydf$mq)
+# Plot the transformed data
+hist(mq_log, main = "log-transformed mq variable")
+
+```
+
+Checking that the log transformation makes the data more normally distributed or not, using shapiro.test() function.
+```{r}
+shapiro.test(price_log)
+shapiro.test(mq_log)
+```
+As it is obvious from the histogram and p-value, log transformation makes the data more normally distributed.
+ 
+ 
+For graphically summary of categorical variables, we can use bar chart or pie chart.
+```{r}
+ggplot(mydf)+ geom_bar(aes(x=has_terrace), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of has_terrace variable") +
+  theme_classic()
+
+
+ggplot(mydf)+ geom_bar(aes(x=heating), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of heating variable") +
+  theme_classic()
+
+ggplot(mydf)+ geom_bar(aes(x=has_alarm), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of has_alarm variable") +
+  theme_classic()
+
+ggplot(mydf)+ geom_bar(aes(x=has_air_conditioning), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of has_air_conditioning variable") +
+  theme_classic()
+
+ggplot(mydf)+ geom_bar(aes(x=has_parking), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of has_parking variable") +
+  theme_classic()
+
+ggplot(mydf)+ geom_bar(aes(x=is_furnished), fill="grey", color="darkgrey") +
+  labs(title = "Bar plot of is_furnished variable") +
+  theme_classic()
+
+```
+
+Step 4) Discovering the correlation and relationships between pairs of variables using functions such as cor() base on the research questions.
+```{r}
+cor(price_log, mq_log)
+```
+
+A correlation value of one represents a perfect positive connection, whereas one shows a perfect negative correlation. A correlation value of 0 shows that there is no relationship.
+A correlation value of 0.4 shows a moderate positive connection between the two variables, implying that when one measure rises, the other is likely to rise as well.
+
+
+Using the cor.test() function, to see if there is a significant relationship between the two variables.
+our null and alternative hypothesis are:
+$H_0: \rho=0$
+$H_1:\rho \ne 0$
+```{r}
+cor.test(price_log, mq_log)
+```
+
+We reject the null hypothesis since the p_ value is less than 0.05. As a result, these two variables are correlated.
+
+
+We can use a statistical test such as  chi-square to test the relationship between two categorical variables.
+
+Chi-square test for is_furnished and heating
+```{r}
+table(mydf$is_furnished, mydf$heating)
+```
+As variable's value are not less than 5 we can use  chisq.test() function.
+
+The null hypothesis that we are testing is: $H_0$: The is_furnished and heating are independent.
+The alternative hypothesis is: $H_1$: There is a relationship between them.
+```{r}
+chisq.test(table(mydf$is_furnished, mydf$heating))
+
+```
+Since p-value > 0.05 we accept $H_0$, there is no relationship between them.
+
+Chi-square test for is_furnished and has_terrace
+```{r}
+table(mydf$is_furnished, mydf$has_terrace)
+```
+As variable's value are not less than 5 we can use  chisq.test() function.
+
+```{r}
+chisq.test(table(mydf$is_furnished, mydf$has_terrace))
+
+```
+According to the p-value there is not a relationship between them.
+
+Fisher test for is_furnished and has_alarm
+```{r}
+table(mydf$is_furnished, mydf$has_alarm)
+```
+Since one of the expected frequencies is < 5 we shoulde use fisher.test() function.
+```{r}
+fisher.test(table(mydf$is_furnished, mydf$has_alarm))
+```
+According to the p-value there is no relationship.
+
+```{r}
+table(mydf$is_furnished, mydf$has_air_conditioning)
+```
+
+```{r}
+chisq.test(table(mydf$is_furnished,mydf$has_air_conditioning))
+
+```
+Since p-value is less than 0.05 so they are correlated.
+
+```{r}
+table(mydf$is_furnished, mydf$has_parking)
+```
+
+```{r}
+fisher.test(table(mydf$is_furnished, mydf$has_parking))
+```
+It is clear that they are not related.
+
+
+Step 5) Visualizing the relationship between variables considering the research questions. Using scatter plot, plot, mosaic plot or box plot.
+
+Research question 1) According to the property price research question our dependent variable is continuous and explanatory variables are a mix of continuous, discrete and categorical.
+
+Using scatter plot to visualize the relationship between two continuous variables.
+```{r}
+ggplot(data=mydf, aes(x=price_log, y=mq_log)) + geom_point() + theme_classic() +
+  ggtitle("Scatter Plot of price vs mq")
+```
+
+As we can see there is a moderate positive correlation between the two variables, meaning that as total square meters of the property increases, the price of the property is likely to also increase. 
+
+Using scatter plot to visualize the relationship between a continuous variable and a discrete variable.
+```{r}
+ggplot(data=mydf, aes(x=floor, y=price_log)) + geom_point() + theme_classic() +
+ggtitle("Scatter Plot of price vs floor")
+
+ggplot(data=mydf, aes(x=n_rooms, y=price_log)) + geom_point() + theme_classic() +
+ggtitle("Scatter Plot of price vs n_rooms")
+
+ggplot(data=mydf, aes(x=n_bathrooms, y=price_log)) + geom_point() + theme_classic() +
+ggtitle("Scatter Plot of price vs n_bathrooms")
+
+```
+
+Using box plot to visualize the relationship between a continuous variable and categorical variables.
+```{r}
+ggplot(data = mydf, aes(x=heating, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by heating")
+
+ggplot(data = mydf, aes(x=has_terrace, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by has_terrace")
+
+ggplot(data = mydf, aes(x=has_alarm, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by has_alarm")
+
+ggplot(data = mydf, aes(x=has_air_conditioning, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by has_air_conditioning")
+
+ggplot(data = mydf, aes(x=has_terrace, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by has_parking")
+
+ggplot(data = mydf, aes(x=is_furnished, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of price by is_furnished")
+```
+                 
+                  
+Research question 2) Then according to the likelihood of a property being furnished research question our dependent variable is binary(categorical) and our explanatory variables are a mix of continuous and categorical.
+
+Exploring the relationship between is_furnished as a categorical variable and continues variables. 
+```{r}
+ggplot(data = mydf, aes(x=is_furnished, y=price_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of is_furnished by price")
+
+ggplot(data = mydf, aes(x=is_furnished, y=mq_log)) + geom_boxplot() + theme_classic() + ggtitle("Box Plot of is_furnished by price")
+
+```
+
+Furthermore, mosaic plots can be used to explore the relationship and distribution of two categorical variables.
+```{r}
+mosaicplot(mydf$is_furnished~mydf$heating, main = "Mosaic plot of furnishing status by heating", ylab="Heating", xlab="Furnishing Status")
+
+mosaicplot(mydf$is_furnished~mydf$has_air_conditioning, main = "Mosaic plot of furnishing status by air conditioning situation", ylab="air conditioning Status", xlab="Furnishing Status")
+
+mosaicplot(mydf$is_furnished~mydf$has_parking, main = "Mosaic plot of furnishing status by parking situation", ylab="Parking Status", xlab="Furnishing Status")
+
+mosaicplot(mydf$is_furnished~mydf$has_terrace, main = "Mosaic plot of furnishing status by terrace situation", ylab="Terrace Status", xlab="Furnishing Status")
+
+mosaicplot(mydf$is_furnished~mydf$has_alarm, main = "Mosaic plot of furnishing status by alarm situation", ylab="Alarm Status", xlab="Furnishing Status")
+```
+
+
+## 2.3 Additional insights and issues
+
+
+In section 2.2 I have explained about insights and issues in each part but in summary,in addition to missing, unreasonable values that have been explored in the data cleaning part there are further issues that we uncovered in Exploratory Data Analysis section.
+According to the histogram of the continuous variables and the result of Shapiro test ,some variables did not follow a bell-shaped curve shape so, as they was not normally we used log transformation to make our data more normally distributed.
+
+
+
+# 3. Modelling
+
+## 3.1 Explain your analysis plan
+
+According to the research question as our dependent variable is continuous two modeling approaches can be used in this step. ANCOVA and Multiple Regression Model.
+
+Multiple Regression)
+the outline for conducting multiple linear regression in R:
+
+Step 1) Load and import the data into R. Eyeball structure and content of the data.
+
+Step 2) Prepare the data for analysis by cleaning it and fixing issues.
+
+Step 3) Explore the data to get a sense of the variable distribution and relationship.
+
+Step 4) Fit the maximal multiple regression model useing the lm() function and get a summary.
+
+
+Step 5) Calculate the minimum adequet model using step() function and get a summary.
+
+Step 6) Plot the final model and Interpret the results using the coefficients and p-values.
+
+
+ANCOVA) 
+The outline for conducting an analysis of covariance (ANCOVA) in R:
+
+Step 1) Begin by importing and cleaning the data.
+
+Step 2) Next, fit an ANCOVA model using the aov() function.
+
+Step 3) Analyze the model fit by examining the ANOVA table, which can be obtained using the summary() function.
+
+Step 4) Finally, entepret the result and visualize the results of the ANCOVA using plots to better understand the relationship between the variables.
+
+
+
+## 3.2 Build a model for property price
+
+Our explanatory or independent variable is Continuous so we according to the independent variable will select t-test, ANOVA, ANCOVA, Linear Regression or Multiple Regression models.
+
+Here as our dependent variable is continuous and our independent variable is a mix of continuous and categorical we can use Multiple Regression or ANCOVA  .
+
+### Multiple Regression
+Maximal model
+```{r}
+maximal.model <- lm(price ~ mq + floor+n_rooms+n_bathrooms+has_terrace+has_alarm+heating+has_air_conditioning+has_parking+is_furnished , data=mydf)
+
+summary(maximal.model)
+```
+Now we can delete the insignificant independent variables manually step by step to have our *minimal adequate model* but instead we can use step() function to do it.
+So now we will use the step function to get our *minimal adequate model*, we do this instead of going step by step manually.
+
+```{r}
+min.model <- step(maximal.model)
+```
+As we can see the result of step function is long so what we are looking for is the last part,which proposes the *minimal adequate model* where the step process stops.
+
+Let's look at this model in more details
+```{r}
+min.model.lm <- lm(formula =price ~ mq + floor + n_rooms + n_bathrooms + heating + has_air_conditioning
+, data=mydf)
+summary(min.model.lm)
+```
+A p-value less than 0.05 considered to be statistically significant,
+According to the result,has_air_conditioning1 is not significant but all other three independent variables are significant predictors of the dependent variable.
+So our *minimal adequate model* is:
+
+$$price_log = 8.95 + 0.46 \times mq_log + 0.35 \times n_bathrooms + 0.21 \times heating$$
+
+```{r}
+plot(min.model)
+```
+
+As we can see in Residuals vs Fitted values plot there is larger scatter with larger fitted values.
+In addition, in Q-Q plot there is a S shape or Banana shape pattern. So, the errors are not normally distributed.
+As e results the plots for the residuals  point to some issues that can be fix with log transformation I will do it as an improvement in 3.4 part.
+
+
+
+## 3.3 Critique model using relevant diagnostics
+
+The following results can be used to evaluate model fit and interpret results after fitting a multiple regression model in R.
+
+Model characteristics)
+A smaller p-value (less than 0.05) indicates that the explanatory variables are significantly related to the response variable.Therefore, mq, n-bathrooms and heating variables are significant.
+
+Goodness of fit) 
+The R-squared value of 0.2764 indicates that the independent variables (mq, floor, n rooms, n bathrooms, heating, has air conditioning) explain approximately 28% of the variance in the dependent variable (price). This indicates that the model has a moderate fit to the data.
+
+The F-statistic and p-value (57.03 and p < 2.2e-16) indicate that the model is statistically significant.
+
+
+Graphical diagnostics)
+As I have explained in Residuals vs Fitted values plot there is larger scatter with larger fitted values(heteroscedasticity).
+In addition, in Q-Q plot there is a S shape or Banana shape pattern. So, the errors are not normally distributed.
+As e results the plots for the residuals  point to some issues that can be fix with log transformation I will do it as an improvement in 3.4 part.
+
+
+## 3.4 Suggest improvements to your model
+
+Because the dependent variable is continuous and the independent variables are a mix of continuous and categorical, ANCOVA can be used as an alternative approach in this case.
+
+More importantly, because there is more scatter with larger fitted values in the residuals plot. In addition, there is a S shape or Banana shape pattern in the Normal Q-Q plot. Transforming the dependent variable and the variable that was not normally distributed using a log transformation can help address the problems identified in the previous step.
+
+Maximal model
+```{r}
+model.improved <- lm(log(price) ~ log(mq)+floor+n_rooms+n_bathrooms+has_terrace+has_alarm+heating+has_air_conditioning+has_parking+is_furnished , data=mydf)
+
+summary(model.improved)
+```
+Now we can delete the insignificant independent variables manually step by step to have our *minimal adequate model* but instead we can use step() function to do it
+So now we will use the step function to get to our *minimal adequate model*, we do this instead of going step by step manually.
+
+```{r}
+min.model.improved <- step(model.improved)
+```
+As we can see the result of step function is long so what we are looking for is the last part,which proposes the *minimal adequate model* where the step wise process stops.
+
+Let's look at this model in more details
+```{r}
+final.model <- lm(log(price) ~ log(mq) + n_bathrooms + heating, data=mydf)
+summary(final.model)
+```
+A p-value less than 0.05 considered to be statistically significant,
+According to the result, all three independent variables are significant predictors of the dependent variable.
+So our *minimal adequate model* is:
+
+$$log(price) = 8.95 + 0.46 \times log(mq) + 0.35 \times n_bathrooms + 0.21 \times heating$$
+
+```{r}
+plot(final.model)
+```
+
+As we can see in Residuals vs Fitted plot there is no larger scatter with larger fitted values.
+In addition, in Normal Q-Q plot there is not a S shape or Banana shape pattern. It is a straight line so the errors are normally distributed.
+In the end the points in plot 3 is not distributed in a triangular shape.
+As e results the plots for the residuals don't point to any issues.
+
+
+### ANCOVA
+```{r}
+ancova.mydf <-lm(price_log~mq_log+mydf$floor+mydf$n_rooms+mydf$n_bathrooms+mydf$has_terrace+mydf$has_alarm+mydf$heating+mydf$has_air_conditioning+mydf$has_parking+mydf$is_furnished)
+summary(ancova.mydf)
+```
+As we can see floor, n_bathrooms and heatingother coefficients are significant because they have a small p-value(p-value < 0.05).    
+
+R-square is 0.2399, it means 24% of the variation in the output variable is explained by the input variables. 
+
+
+```{r}
+plot(ancova.mydf)
+```
+As we can see in plot 1 there is no larger scatter with larger fitted values.
+In addition, in plot 2 there is not a S shape or Banana shape pattern. It is a straight line so the errors are normally distributed.
+As e results the plots does not point to any issues.
+
+# 4. Extension work
+
+## 4.1 Model the likelihood of a property being furnished (using the is_furnished variable provided).
+The likelihood of property being furnished is a binary (categorical) dependent variable so a good approach to model this relationship is Logistic Regression. 
+
+Making sure that our dependent variable or the target variable is indeed being treated as a factor.
+```{r}
+str(mydf$is_furnished)
+```
+
+Using table function to confirm that our dependent variable only has 2 values
+```{r}
+table(mydf$is_furnished)
+```
+
+
+Maximal model without interactions.
+```{r}
+furnished.max<-glm(is_furnished ~ price + mq + floor + n_rooms + n_bathrooms + has_terrace + has_alarm + heating + has_air_conditioning + has_parking, family=binomial, data = mydf )
+
+summary(furnished.max)
+```
+According to the result just has_air_conditioning1 is significant because it's p-value is less than 0.05.
+
+
+In addition we can do some model selection using step function to see if this can be improved.
+```{r}
+furnished.min <- step(furnished.max)
+```
+
+Looking at the result model in more detail:
+```{r}
+furnished.min.glm <- glm(formula = is_furnished ~ has_air_conditioning, family = binomial, 
+    data = mydf)
+summary(furnished.min.glm )
+```
+
+And we can see has_air_conditioning1 is significant because it's p-value is less than 0.05.
+
+### Odd ratios and Odds
+We use the following steps to compute the odd ratios:
+```{r}
+#using the model : furnished.max
+#extract the coefficients of the model using coef()
+#exponentiate the coefficients
+exp(coef(furnished.max))
+```
+The odds ratios can tell us what effect a change in the dependent variable has on the odds of being furnished, in this model and data. 
+
+Interpreting the result of odd ratios:
+According to the result, we can summarize that mq_log, floor, n_rooms, n_bathrooms,has_terrace1, has_alarm1 and has_air_conditioning1 increase furnished likelihood slightly.
+has_parking1 increases the furnished likelihood more by a factor of 2.48.
+Additionally, price_log and heatingother decrease furnished likelihood by a factor of 0.86 and  0.69.
+
+We can also use the model to predict the probability of being infected using:
+
+```{r}
+#predict the probability of infection from the model
+mydf$pfurnished<-predict(furnished.max, type="response")
+head(mydf)
+```
+
+# References  
+*Add any references here. NB You can either do this manually or automatically with a `.bib` file (which then must be submitted along with your `.Rmd` file).  See the RMarkdown [documentation](https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html) for guidance.*  
+
+
+
